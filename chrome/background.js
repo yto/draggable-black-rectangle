@@ -1,26 +1,52 @@
 // background.js
 
+// 安全に sendMessage を投げるヘルパー
 function safeSend(tabId, msg) {
     chrome.tabs.sendMessage(tabId, msg, response => {
-        // エラーなら何もしない
+        // 受信側がいないときのエラーは握りつぶす
         if (chrome.runtime.lastError) {
             // console.warn(chrome.runtime.lastError);
         }
     });
 }
 
+// まずコンテンツスクリプトを注入してからメッセージ送信
+function injectAndSend(tabId, message) {
+    // content.js を対象タブにインジェクト
+    chrome.scripting.executeScript({
+        target: { tabId },
+        files: ['content.js']
+    }).then(() => {
+        safeSend(tabId, message);
+    }).catch(err => {
+        // console.error('injectScript failed:', err);
+    });
+}
+
+// ツールバーアイコンクリック
 chrome.action.onClicked.addListener((tab) => {
     if (!tab.id) return;
-    safeSend(tab.id, { action: 'addRect' });
+    injectAndSend(tab.id, { action: 'addRect' });
 });
 
+// コマンドショートカット
 chrome.commands.onCommand.addListener((command) => {
     if (command !== 'add-rectangle') return;
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
         const tab = tabs[0];
         if (!tab?.id) return;
-        safeSend(tab.id, { action: 'addRect' });
+        injectAndSend(tab.id, { action: 'addRect' });
     });
+});
+
+// On navigation or reload, trigger reload in content script
+chrome.webNavigation.onCommitted.addListener(details => {
+    if (details.frameId !== 0) return;
+    chrome.scripting.insertCSS({
+        target: { tabId: details.tabId, allFrames: false },
+        files: ["overlay.css"],
+    });
+    injectAndSend(details.tabId, { type: 'reloadRects' });
 });
 
 // Handle saving and retrieving rectangle states
@@ -45,10 +71,3 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         return true;
     }
 });
-
-// On navigation or reload, trigger reload in content script
-chrome.webNavigation.onCommitted.addListener(details => {
-    if (details.frameId !== 0) return;
-    safeSend(details.tabId, { type: 'reloadRects' });
-});
-

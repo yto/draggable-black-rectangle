@@ -1,6 +1,6 @@
 # Draggable Black Rectangle Chrome 拡張機能
 
-([英語](README.md)/日本語)
+([English](README.md)/Japanese)
 
 画面共有時のプライバシー保護のため、任意のページ上にサイズ変更・複製・削除可能な黒塗りボックスを配置する Chrome 拡張機能。
 
