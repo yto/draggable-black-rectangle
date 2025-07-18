@@ -5,7 +5,9 @@
     "description": "A tool to place resizable, copyable, and deletable black boxes on any page for privacy when screen sharing.",
     "permissions": [
         "activeTab",
-        "scripting"
+        "scripting",
+        "storage",
+        "webNavigation"
     ],
     "background": {
         "service_worker": "background.js"
@@ -25,7 +27,8 @@
     "content_scripts": [
         {
             "matches": ["<all_urls>"],
-            "js": ["content.js"]
+            "js": ["content.js"],
+            "run_at": "document_end"
         }
     ],
     "commands": {
