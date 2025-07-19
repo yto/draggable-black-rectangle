@@ -4,6 +4,11 @@
 
 画面共有時のプライバシー保護のため、任意のページ上にサイズ変更・複製・削除可能な黒塗りボックスを配置する Chrome 拡張機能。
 
+## Chrome ウェブストア
+
+draggable black rectangle - Chrome Web Store
+https://chromewebstore.google.com/detail/draggable-black-rectangle/pjcalmbgdeghknpdicbhmfnfmpmfajpi
+
 ## 機能
 
 * **ツールバー**: 拡張機能アイコンをクリックすると、デフォルト位置に黒い矩形を配置
