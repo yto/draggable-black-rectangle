@@ -4,6 +4,11 @@
 
 A Chrome extension to place resizable, copyable, and deletable black boxes on any page for privacy when screen sharing.
 
+## Chrome Web Store
+
+draggable black rectangle - Chrome Web Store
+https://chromewebstore.google.com/detail/draggable-black-rectangle/pjcalmbgdeghknpdicbhmfnfmpmfajpi
+
 ## Features
 
 * **Toolbar**: Click the extension icon to add a new black rectangle at a default position.
