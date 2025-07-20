@@ -1,6 +1,6 @@
 {
     "manifest_version": 3,
-    "name": "draggable black rectangle",
+    "name": "Draggable Black Rectangle",
     "version": "0.1",
     "description": "A tool to place resizable, copyable, and deletable black boxes on any page for privacy when screen sharing.",
     "permissions": [
