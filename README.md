@@ -16,18 +16,6 @@ https://chromewebstore.google.com/detail/draggable-black-rectangle/pjcalmbgdeghk
 * **Drag & Resize**: Move the rectangle by dragging; resize with the bottom-right handle.
 * **Copy & Delete**: 📄 Copy button to clone at an offset (10px,10px); ✖ Delete button to remove.
 
-## Installation
-
-1. Clone this repository:
-
-   ```bash
-   git clone https://github.com/yto/draggable-black-rectangle.git
-   cd draggable-black-rectangle
-   ```
-2. Open Chrome and navigate to `chrome://extensions/`.
-3. Enable **Developer mode** (toggle in the top‑right).
-4. Click **Load unpacked** and select this project directory.
-
 ## Usage
 
 * **Add a rectangle**:

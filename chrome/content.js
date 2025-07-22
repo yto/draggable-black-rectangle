@@ -3,105 +3,235 @@
     if (window.draggableBlackRectangleInit) return;
     window.draggableBlackRectangleInit = true;
 
-    //
-    // 1. Inject CSS via <style> with MutationObserver fallback
-    //
-    const style = document.createElement('style');
-    style.textContent = `
-.rect {
-  position: fixed;
-  background-color: #000;
-  user-select: none;
-  cursor: move;
-  z-index: 10000;
-}
-.rect .handle {
-  position: absolute;
-  width: 10px;
-  height: 10px;
-  background-color: #fff;
-  right: 0;
-  bottom: 0;
-  cursor: se-resize;
-}
-.rect .controls {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  display: flex;
-  gap: 4px;
-}
-.rect .controls button {
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  border: none;
-  background-color: #fff;
-  cursor: pointer;
-  font-size: 12px;
-  line-height: 1;
-}
-`;
-    if (document.head) {
-        document.head.appendChild(style);
-    } else {
-        const obs = new MutationObserver((mutations, observer) => {
-            if (document.head) {
-                document.head.appendChild(style);
-                observer.disconnect();
-            }
-        });
-        obs.observe(document.documentElement, { childList: true });
-    }
 
     //
-    // 2. State messaging helpers
+    //  State messaging helpers
     //
     function sendState(id, state) {
         chrome.runtime.sendMessage({ type: 'saveState', id, state });
     }
 
+
     //
-    // 3. Create rectangle element
+    //  Create rectangle element
     //
     function makeRect(id, { left, top, width, height }) {
-        // ID 重複ガード：既に同じ data-rect-id を持つ要素があれば何もしない
-        if (document.querySelector(`.rect[data-rect-id="${id}"]`)) return;
+        // ID重複ガード
+        if (document.querySelector(`div[data-rect-id="${id}"]`)) {
+            return document.querySelector(`div[data-rect-id="${id}"]`);
+        }
 
-        const rect = document.createElement('div');
-        rect.className = 'rect';
-        rect.dataset.rectId = id;
-        rect.style.left = left;
-        rect.style.top = top;
-        rect.style.width = width;
-        rect.style.height = height;
+        // ホスト要素（ドラッグ・リサイズの対象）
+        const host = document.createElement('div');
+        host.dataset.rectId = id;
+        host.style.position = 'fixed';
+        host.style.left = left;
+        host.style.top = top;
+        host.style.width = width;
+        host.style.height = height;
+        host.style.zIndex = '10000';
+        host.style.zIndex = '2147483647';
+        host.style.cursor = 'move';
+        host.style.boxSizing = 'border-box';
+        host.style.background = 'rgba(0,0,0,1)';
+        host.style.opacity = '1';
+        host.style.mixBlendMode = 'normal';
+        host.style.filter = 'none';
+        host.style.isolation = 'isolate';
+        host.style.contain = 'paint';
+        document.body.appendChild(host);
 
-        // controls
+        // Shadow DOM
+        const shadow = host.attachShadow({ mode: 'open' });
+
+        // Shadow用スタイル（ページCSSの影響を受けない）
+        const style = document.createElement('style');
+        style.textContent = `
+    :host {
+      display: block;
+      width: 100%;
+      height: 100%;
+      background: #000 !important;
+      opacity: 1 !important;
+      mix-blend-mode: normal !important;
+      filter: none !important;
+      isolation: isolate !important;
+      box-sizing: border-box;
+      font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    }
+    .controls {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      display: flex;
+      gap: 4px;
+    }
+    .btn {
+      all: unset;
+      width: 20px;
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #fff;
+      cursor: pointer;
+      font-size: 12px;
+      line-height: 1;
+      box-sizing: border-box;
+    }
+    .handle {
+      position: absolute;
+      right: 0;
+      bottom: 0;
+      width: 10px;
+      height: 10px;
+      background: #fff;
+      cursor: se-resize;
+    }
+`;
+        shadow.appendChild(style);
+
+        // Shadow内容
         const controls = document.createElement('div');
         controls.className = 'controls';
+
         const copyBtn = document.createElement('button');
-        copyBtn.className = 'copy-btn';
+        copyBtn.className = 'btn copy';
         copyBtn.title = 'Copy';
         copyBtn.textContent = '📄';
-        const deleteBtn = document.createElement('button');
-        deleteBtn.className = 'delete-btn';
-        deleteBtn.title = 'Delete';
-        deleteBtn.textContent = '✖';
-        controls.appendChild(copyBtn);
-        controls.appendChild(deleteBtn);
-        rect.appendChild(controls);
 
-        // resize handle
+        const delBtn = document.createElement('button');
+        delBtn.className = 'btn delete';
+        delBtn.title = 'Delete';
+        delBtn.textContent = '✖';
+
+        controls.append(copyBtn, delBtn);
+
         const handle = document.createElement('div');
         handle.className = 'handle';
-        rect.appendChild(handle);
 
-        document.body.appendChild(rect);
-        return rect;
+        shadow.append(controls, handle);
+
+        // イベントバインド
+        bindRectEvents(host);
+
+        return host;
     }
 
+    let dragInfo = null; // { host, startX, startY, startLeft, startTop }
+    let resizeInfo = null; // { host, startX, startY, startW, startH }
+
+    function bindRectEvents(host) {
+        const shadow = host.shadowRoot;
+        const copyBtn = shadow.querySelector('.btn.copy');
+        const delBtn  = shadow.querySelector('.btn.delete');
+        const handle  = shadow.querySelector('.handle');
+
+        // Delete
+        delBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            sendState(host.dataset.rectId, null);
+            host.remove();
+        });
+
+        // Copy
+        copyBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const st = host.getBoundingClientRect();
+            const state = {
+                left: (st.left + 10) + 'px',
+                top:  (st.top + 10)  + 'px',
+                width: host.style.width,
+                height: host.style.height
+            };
+            const id = 'rect_' + Date.now();
+            makeRect(id, state);
+            sendState(id, state);
+        });
+
+        // Resize
+        handle.addEventListener('mousedown', (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            const st = host.getBoundingClientRect();
+            resizeInfo = {
+                host,
+                startX: e.clientX,
+                startY: e.clientY,
+                startW: st.width,
+                startH: st.height
+            };
+            attachGlobalMouseEvents();
+        });
+
+        // Drag (host 全体をドラッグ対象に)
+        host.addEventListener('mousedown', (e) => {
+            // ボタンやハンドルクリックは除外
+            const path = e.composedPath();
+            if (path.includes(copyBtn) || path.includes(delBtn) || path.includes(handle)) return;
+
+            e.preventDefault();
+            const st = host.getBoundingClientRect();
+            dragInfo = {
+                host,
+                startX: e.clientX,
+                startY: e.clientY,
+                startLeft: st.left,
+                startTop: st.top
+            };
+            attachGlobalMouseEvents();
+        });
+    }
+
+    function attachGlobalMouseEvents() {
+        document.addEventListener('mousemove', onGlobalMouseMove, true);
+        document.addEventListener('mouseup', onGlobalMouseUp, true);
+    }
+
+    function detachGlobalMouseEvents() {
+        document.removeEventListener('mousemove', onGlobalMouseMove, true);
+        document.removeEventListener('mouseup', onGlobalMouseUp, true);
+    }
+
+    function onGlobalMouseMove(e) {
+        if (dragInfo) {
+            const { host, startX, startY, startLeft, startTop } = dragInfo;
+            host.style.left = (startLeft + e.clientX - startX) + 'px';
+            host.style.top  = (startTop  + e.clientY - startY) + 'px';
+        } else if (resizeInfo) {
+            const { host, startX, startY, startW, startH } = resizeInfo;
+            host.style.width  = (startW + e.clientX - startX) + 'px';
+            host.style.height = (startH + e.clientY - startY) + 'px';
+        }
+    }
+
+    function onGlobalMouseUp() {
+        if (dragInfo) {
+            const { host } = dragInfo;
+            sendState(host.dataset.rectId, {
+                left: host.style.left,
+                top: host.style.top,
+                width: host.style.width,
+                height: host.style.height
+            });
+            dragInfo = null;
+        }
+        if (resizeInfo) {
+            const { host } = resizeInfo;
+            sendState(host.dataset.rectId, {
+                left: host.style.left,
+                top: host.style.top,
+                width: host.style.width,
+                height: host.style.height
+            });
+            resizeInfo = null;
+        }
+        detachGlobalMouseEvents();
+    }
+
+
     //
-    // 4. Inject a new rectangle
+    //  Inject a new rectangle
     //
     function injectRectangle() {
         const id = 'rect_' + Date.now();
@@ -110,8 +240,9 @@
         sendState(id, state);
     }
 
+
     //
-    // 5. Restore persisted rectangles
+    //  Restore persisted rectangles
     //
     function restoreRects() {
         chrome.runtime.sendMessage({ type: 'getTabStates' }, response => {
@@ -122,8 +253,9 @@
         });
     }
 
+
     //
-    // 6. Call restoreRects as early as possible
+    //  Call restoreRects as early as possible
     //
     // Try immediately...
     restoreRects();
@@ -138,8 +270,9 @@
         obsBody.observe(document.documentElement, { childList: true });
     }
 
+
     //
-    // 7. Listen for background messages
+    //  Listen for background messages
     //
     chrome.runtime.onMessage.addListener(msg => {
         if (msg.action === 'addRect') {
@@ -149,87 +282,5 @@
         }
     });
 
-    //
-    // 8. Mouse event handlers for drag, resize, copy, delete
-    //
-    let isDragging = false, isResizing = false, currentRect = null;
-    let startX, startY, startLeft, startTop, startWidth, startHeight;
 
-    document.addEventListener('mousedown', e => {
-        // delete
-        if (e.target.matches('.delete-btn')) {
-            const r = e.target.closest('.rect');
-            if (r) {
-                sendState(r.dataset.rectId, null);
-                r.remove();
-            }
-            return;
-        }
-        // copy
-        if (e.target.matches('.copy-btn')) {
-            const r = e.target.closest('.rect');
-            if (r) {
-                const st = window.getComputedStyle(r);
-                const newState = {
-                    left:  (parseFloat(st.left) + 10) + 'px',
-                    top:   (parseFloat(st.top)  + 10) + 'px',
-                    width: st.width,
-                    height: st.height
-                };
-                const id2 = 'rect_' + Date.now();
-                makeRect(id2, newState);
-                sendState(id2, newState);
-            }
-            return;
-        }
-        // resize
-        if (e.target.matches('.handle')) {
-            isResizing = true;
-            currentRect = e.target.closest('.rect');
-            startX = e.clientX; startY = e.clientY;
-            const st = window.getComputedStyle(currentRect);
-            startWidth  = parseFloat(st.width);
-            startHeight = parseFloat(st.height);
-            document.addEventListener('mousemove', onMouseMove);
-            document.addEventListener('mouseup',   onMouseUp);
-            return;
-        }
-        // drag
-        const rElem = e.target.closest('.rect');
-        if (rElem) {
-            isDragging = true;
-            currentRect = rElem;
-            startX = e.clientX; startY = e.clientY;
-            const box = currentRect.getBoundingClientRect();
-            startLeft = box.left; startTop = box.top;
-            document.addEventListener('mousemove', onMouseMove);
-            document.addEventListener('mouseup',   onMouseUp);
-        }
-    });
-
-    function onMouseMove(e) {
-        if (isDragging && currentRect) {
-            currentRect.style.left = (startLeft + e.clientX - startX) + 'px';
-            currentRect.style.top  = (startTop  + e.clientY - startY) + 'px';
-        } else if (isResizing && currentRect) {
-            currentRect.style.width  = (startWidth  + e.clientX - startX) + 'px';
-            currentRect.style.height = (startHeight + e.clientY - startY) + 'px';
-        }
-    }
-
-    function onMouseUp() {
-        if (currentRect) {
-            sendState(currentRect.dataset.rectId, {
-                left:   currentRect.style.left,
-                top:    currentRect.style.top,
-                width:  currentRect.style.width,
-                height: currentRect.style.height
-            });
-        }
-        isDragging = false;
-        isResizing = false;
-        currentRect = null;
-        document.removeEventListener('mousemove', onMouseMove);
-        document.removeEventListener('mouseup',   onMouseUp);
-    }
 })();

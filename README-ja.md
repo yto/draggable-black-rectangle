@@ -16,18 +16,6 @@ https://chromewebstore.google.com/detail/draggable-black-rectangle/pjcalmbgdeghk
 * **ドラッグ＆リサイズ**: 矩形本体をドラッグで移動、右下ハンドルでサイズ変更
 * **複製＆削除**: 📄 複製ボタンで (10px,10px) オフセット複製、✖ 削除ボタンで削除
 
-## インストール
-
-1. リポジトリをクローン:
-
-   ```bash
-   git clone https://github.com/yto/draggable-black-rectangle.git
-   cd draggable-black-rectangle
-   ```
-2. Chrome を開き、`chrome://extensions/` にアクセス
-3. **デベロッパーモード** を有効化（右上トグル）
-4. **パッケージ化されていない拡張機能を読み込む** でプロジェクトディレクトリを選択
-
 ## 使い方
 
 * **矩形を配置**:
